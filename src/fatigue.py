@@ -89,15 +89,20 @@ def fatigue_life(sigma_rev, s_e, a, b):
 # ES: --- Prueba rápida ---
 a, b = basquin_constants(S_UT, S_E, F_FRACTION)
 
-for force_max in [25, 45]:
+for force_max in [25, 45, 55]:
+    print(f"F_max = {force_max} kN")
     force_min = force_max / 10
     sigma_max = bending_stress(force_max, 1200, 114.3, 6.35)
+
+    if sigma_max >= S_Y:
+        print(f"  sigma_max = {sigma_max:.2f} MPa >= S_y: static yield failure")
+        continue
+
     sigma_min = bending_stress(force_min, 1200, 114.3, 6.35)
     sigma_a = alternating_stress(sigma_max, sigma_min)
     sigma_m = mean_stress(sigma_max, sigma_min)
     sigma_rev = goodman_equivalent_stress(sigma_a, sigma_m, S_UT)
     life = fatigue_life(sigma_rev, S_E, a, b)
 
-    print(f"F_max = {force_max} kN")
     print(f"  sigma_max = {sigma_max:.2f} MPa, sigma_rev = {sigma_rev:.2f} MPa")
     print(f"  Life: {life:.3e} cycles")
