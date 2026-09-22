@@ -51,11 +51,12 @@ def bending_stress(force_kn, span, outer_diameter, wall_thickness):
 
 # --- Quick test ---
 # ES: --- Prueba rápida ---
-sigma_a = alternating_stress(120, 12)
-sigma_m = mean_stress(120, 12)
 sigma_max = bending_stress(25, 1200, 114.3, 6.35)
 sigma_min = bending_stress(2.5, 1200, 114.3, 6.35)
-print(f"Alternating stress: {sigma_a} MPa")
-print(f"Mean stress: {sigma_m} MPa")
+sigma_a = alternating_stress(sigma_max, sigma_min)
+sigma_m = mean_stress(sigma_max, sigma_min)
+
 print(f"Max bending stress: {sigma_max:.2f} MPa")
 print(f"Min bending stress: {sigma_min:.2f} MPa")
+print(f"Alternating stress: {sigma_a:.2f} MPa")
+print(f"Mean stress: {sigma_m:.2f} MPa")
