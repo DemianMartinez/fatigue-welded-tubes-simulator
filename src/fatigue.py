@@ -4,6 +4,13 @@
 # Stress cycle parameters
 # ES: Parámetros del ciclo de esfuerzo
 
+# Material properties: ASTM A500 Gr. B (design assumptions)
+# ES: Propiedades del material: ASTM A500 Gr. B (supuestos de diseño)
+S_UT = 400.0      # Ultimate tensile strength, MPa / ES: Resistencia última, MPa
+S_Y = 290.0       # Yield strength, MPa / ES: Límite de fluencia, MPa
+S_E = 105.67      # Corrected endurance limit, MPa / ES: Límite de fatiga corregido, MPa
+F_FRACTION = 0.9  # Fatigue strength fraction at 10^3 cycles / ES: Fracción f a 10^3 ciclos
+
 import math
 
 
@@ -49,14 +56,48 @@ def bending_stress(force_kn, span, outer_diameter, wall_thickness):
     return moment * c / inertia
 
 
+def goodman_equivalent_stress(sigma_a, sigma_m, s_ut):
+    """Return the Goodman equivalent stress in MPa.
+    ES: Devuelve el esfuerzo equivalente de Goodman en MPa.
+    """
+    if sigma_m <= 0:
+        return sigma_a
+    else:
+        return sigma_a / (1 - (sigma_m / s_ut))
+
+
+def basquin_constants(s_ut, s_e, f):
+    """Return Basquin constants a (MPa) and b for the S-N curve.
+    ES: Devuelve las constantes de Basquin a (MPa) y b de la curva S-N.
+    """
+    a = (f * s_ut)**2 / s_e
+    b = -math.log10(f * s_ut / s_e) / 3
+    return a, b
+
+
+def fatigue_life(sigma_rev, s_e, a, b):
+    """Return cycles to failure. Returns infinity if below the endurance limit.
+    ES: Devuelve los ciclos hasta la falla. Devuelve infinito si está por
+    debajo del límite de fatiga.
+    """
+    if sigma_rev <= s_e:
+        return math.inf
+    return (sigma_rev / a)**(1 / b)
+
+
 # --- Quick test ---
 # ES: --- Prueba rápida ---
-sigma_max = bending_stress(25, 1200, 114.3, 6.35)
-sigma_min = bending_stress(2.5, 1200, 114.3, 6.35)
-sigma_a = alternating_stress(sigma_max, sigma_min)
-sigma_m = mean_stress(sigma_max, sigma_min)
+a, b = basquin_constants(S_UT, S_E, F_FRACTION)
 
-print(f"Max bending stress: {sigma_max:.2f} MPa")
-print(f"Min bending stress: {sigma_min:.2f} MPa")
-print(f"Alternating stress: {sigma_a:.2f} MPa")
-print(f"Mean stress: {sigma_m:.2f} MPa")
+for force_max in [25, 45]:
+    force_min = force_max / 10
+    sigma_max = bending_stress(force_max, 1200, 114.3, 6.35)
+    sigma_min = bending_stress(force_min, 1200, 114.3, 6.35)
+    sigma_a = alternating_stress(sigma_max, sigma_min)
+    sigma_m = mean_stress(sigma_max, sigma_min)
+    sigma_rev = goodman_equivalent_stress(sigma_a, sigma_m, S_UT)
+    life = fatigue_life(sigma_rev, S_E, a, b)
+
+    print(f"F_max = {force_max} kN")
+    print(f"  sigma_max = {sigma_max:.2f} MPa, sigma_rev = {sigma_rev:.2f} MPa")
+    print(f"  Life: {life:.3e} cycles")
