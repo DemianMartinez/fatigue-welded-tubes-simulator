@@ -4,10 +4,6 @@ import math
 # Fatigue simulator for butt-welded tubular joints
 # ES: Simulador de fatiga para uniones tubulares soldadas a tope
 
-# Stress cycle parameters
-# ES: Parámetros del ciclo de esfuerzo
-
-
 # Material properties: ASTM A500 Gr. B (design assumptions)
 # ES: Propiedades del material: ASTM A500 Gr. B (supuestos de diseño)
 S_UT = 400.0      # Ultimate tensile strength, MPa / ES: Resistencia última, MPa
@@ -88,24 +84,94 @@ def fatigue_life(sigma_rev, s_e, a, b):
     return (sigma_rev / a)**(1 / b)
 
 
-# --- Quick test ---
-# ES: --- Prueba rápida ---
-a, b = basquin_constants(S_UT, S_E, F_FRACTION)
-
-for force_max in [25, 45, 55]:
-    print(f"F_max = {force_max} kN")
-    force_min = force_max / 10
-    sigma_max = bending_stress(force_max, 1200, 114.3, 6.35)
-
+def life_for_force(force_max_kn, span, outer_diameter, wall_thickness):
+    """Return cycles to failure for a load cycle with R = 0.1.
+    Returns 0.0 if the static yield limit is exceeded.
+    ES: Devuelve los ciclos hasta la falla para un ciclo de carga con R = 0.1.
+    Devuelve 0.0 si se rebasa el límite de fluencia estática.
+    """
+    force_min_kn = force_max_kn / 10
+    sigma_max = bending_stress(force_max_kn, span, outer_diameter, wall_thickness)
+    
+    # Static yield check: immediate failure (0 cycles)
+    # ES: Verificación de fluencia estática: falla instantánea (0 ciclos)
     if sigma_max >= S_Y:
-        print(f"  sigma_max = {sigma_max:.2f} MPa >= S_y: static yield failure")
-        continue
-
-    sigma_min = bending_stress(force_min, 1200, 114.3, 6.35)
+        return 0.0
+        
+    sigma_min = bending_stress(force_min_kn, span, outer_diameter, wall_thickness)
+    
+    # Apply K_F to operating stresses, not to S_E
+    # ES: K_F aplicado a los esfuerzos operativos, no a S_E
     sigma_a = alternating_stress(sigma_max, sigma_min) * K_F
     sigma_m = mean_stress(sigma_max, sigma_min) * K_F
+    
     sigma_rev = goodman_equivalent_stress(sigma_a, sigma_m, S_UT)
-    life = fatigue_life(sigma_rev, S_E, a, b)
+    
+    # Encapsulation: Constants are calculated locally
+    # ES: Encapsulamiento: Las constantes se calculan localmente
+    a, b = basquin_constants(S_UT, S_E, F_FRACTION)
+    
+    return fatigue_life(sigma_rev, S_E, a, b)
 
-    print(f"  sigma_max = {sigma_max:.2f} MPa, sigma_rev = {sigma_rev:.2f} MPa")
-    print(f"  Life: {life:.3e} cycles")
+
+def miner_damage(spectrum, span, outer_diameter, wall_thickness):
+    """Return the cumulative damage D for a load spectrum.
+    ES: Devuelve el daño acumulado D para un espectro de cargas.
+    """
+    total_damage = 0.0
+    for force_max_kn, cycles in spectrum:
+        life = life_for_force(force_max_kn, span, outer_diameter, wall_thickness)
+        
+        # Intentional early exit: static yield breaks the structure completely
+        # ES: Salida temprana intencional: la fluencia estática rompe la estructura por completo
+        if life == 0.0:
+            return math.inf
+            
+        total_damage += cycles / life
+        
+    return total_damage
+
+
+def blocks_until_failure(force_max_kn, block_cycles, span, outer_diameter, wall_thickness):
+    """Return the number of complete blocks that can be run before failure (D >= 1).
+    Returns an int, or a float (math.inf) if the load is below the endurance limit.
+    ES: Devuelve el número de bloques completos que se pueden correr antes de la falla (D >= 1).
+    Devuelve un int, o un float (math.inf) si la carga está bajo el límite de fatiga.
+    """
+    life = life_for_force(force_max_kn, span, outer_diameter, wall_thickness)
+    
+    if life == 0.0:
+        return 0
+    if life == math.inf:
+        return math.inf
+        
+    return math.ceil(life / block_cycles) - 1
+
+
+if __name__ == "__main__":
+
+    # --- Test: single load levels ---
+    # ES: --- Prueba: niveles de carga individuales ---
+    for force_max in [25, 45, 55]:
+        life = life_for_force(force_max, 1200, 114.3, 6.35)
+        if life == 0.0:
+            print(f"F_max = {force_max} kN: static yield failure")
+        else:
+            print(f"F_max = {force_max} kN -> life: {life:.3e} cycles")
+
+    # --- Test: Miner cumulative damage ---
+    # ES: --- Prueba: daño acumulado de Miner ---
+    spectrum = [(20, 500000), (25, 300000), (35, 50000)]
+    damage_result = miner_damage(spectrum, 1200, 114.3, 6.35)
+    print(f"\nTotal cumulative damage: D = {damage_result:.3f}")
+
+    if damage_result >= 1.0:
+        print("Structural failure: D >= 1. The part collapses.")
+    else:
+        print("Safe operation: D < 1. The part survives the spectrum.")
+
+    # --- Test: blocks until failure ---
+    # ES: --- Prueba: bloques hasta la falla ---
+    blocks_35kn = blocks_until_failure(35, 20000, 1200, 114.3, 6.35)
+    print(f"Blocks until failure (35 kN, 20k cycles/block): {blocks_35kn}")
+    
