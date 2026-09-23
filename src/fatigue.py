@@ -1,17 +1,20 @@
+import math
+
+
 # Fatigue simulator for butt-welded tubular joints
 # ES: Simulador de fatiga para uniones tubulares soldadas a tope
 
 # Stress cycle parameters
 # ES: Parámetros del ciclo de esfuerzo
 
+
 # Material properties: ASTM A500 Gr. B (design assumptions)
 # ES: Propiedades del material: ASTM A500 Gr. B (supuestos de diseño)
 S_UT = 400.0      # Ultimate tensile strength, MPa / ES: Resistencia última, MPa
 S_Y = 290.0       # Yield strength, MPa / ES: Límite de fluencia, MPa
-S_E = 105.67      # Corrected endurance limit, MPa / ES: Límite de fatiga corregido, MPa
+S_E = 94.75       # Corrected endurance limit, MPa / ES: Límite de fatiga corregido, MPa
+K_F = 1.2           # Fatigue stress-concentration factor (reinforced butt weld) / ES: Factor de concentración de esfuerzo por fatiga (soldadura a tope reforzada)
 F_FRACTION = 0.9  # Fatigue strength fraction at 10^3 cycles / ES: Fracción f a 10^3 ciclos
-
-import math
 
 
 def alternating_stress(sigma_max, sigma_min):
@@ -99,8 +102,8 @@ for force_max in [25, 45, 55]:
         continue
 
     sigma_min = bending_stress(force_min, 1200, 114.3, 6.35)
-    sigma_a = alternating_stress(sigma_max, sigma_min)
-    sigma_m = mean_stress(sigma_max, sigma_min)
+    sigma_a = alternating_stress(sigma_max, sigma_min) * K_F
+    sigma_m = mean_stress(sigma_max, sigma_min) * K_F
     sigma_rev = goodman_equivalent_stress(sigma_a, sigma_m, S_UT)
     life = fatigue_life(sigma_rev, S_E, a, b)
 
