@@ -132,6 +132,37 @@ def miner_damage(spectrum, span, outer_diameter, wall_thickness):
     return total_damage
 
 
+def damage_history(spectrum, span, outer_diameter, wall_thickness):
+    """Return cumulative cycles and cumulative damage after each block.
+    Damage is set to infinity for the block that causes static yield.
+    ES: Devuelve los ciclos acumulados y el daño acumulado tras cada bloque.
+    El daño se fija en infinito para el bloque que provoca fluencia estática.
+    """
+    cumulative_cycles = [0.0]
+    cumulative_damage = [0.0]
+
+    current_cycles = 0.0
+    current_damage = 0.0
+
+    for force_max_kn, cycles in spectrum:
+        life = life_for_force(force_max_kn, span, outer_diameter, wall_thickness)
+
+        # Immediate static failure: append infinity and abort the remaining spectrum
+        # ES: Falla estática inmediata: añadir infinito y abortar el espectro restante
+        if life == 0.0:
+            cumulative_cycles.append(current_cycles)
+            cumulative_damage.append(math.inf)
+            break
+
+        current_cycles += cycles
+        current_damage += cycles / life
+
+        cumulative_cycles.append(current_cycles)
+        cumulative_damage.append(current_damage)
+
+    return cumulative_cycles, cumulative_damage
+
+
 def blocks_until_failure(force_max_kn, block_cycles, span, outer_diameter, wall_thickness):
     """Return the number of complete blocks that can be run before failure (D >= 1).
     Returns an int, or a float (math.inf) if the load is below the endurance limit.
@@ -187,6 +218,13 @@ if __name__ == "__main__":
         print("Structural failure: D >= 1. The part collapses.")
     else:
         print("Safe operation: D < 1. The part survives the spectrum.")
+
+    # --- Test: damage history ---
+    # ES: --- Prueba: historial de daño acumulado ---
+    history_cycles, history_damage = damage_history(spectrum, 1200, 114.3, 6.35)
+    print("\nDamage history:")
+    for damage_value in history_damage:
+        print(f"  D = {damage_value:.4f}")
 
     # --- Test: blocks until failure ---
     # ES: --- Prueba: bloques hasta la falla ---
