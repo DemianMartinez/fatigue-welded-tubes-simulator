@@ -92,25 +92,25 @@ def life_for_force(force_max_kn, span, outer_diameter, wall_thickness):
     """
     force_min_kn = force_max_kn / 10
     sigma_max = bending_stress(force_max_kn, span, outer_diameter, wall_thickness)
-    
+
     # Static yield check: immediate failure (0 cycles)
     # ES: Verificación de fluencia estática: falla instantánea (0 ciclos)
     if sigma_max >= S_Y:
         return 0.0
-        
+
     sigma_min = bending_stress(force_min_kn, span, outer_diameter, wall_thickness)
-    
+
     # Apply K_F to operating stresses, not to S_E
     # ES: K_F aplicado a los esfuerzos operativos, no a S_E
     sigma_a = alternating_stress(sigma_max, sigma_min) * K_F
     sigma_m = mean_stress(sigma_max, sigma_min) * K_F
-    
+
     sigma_rev = goodman_equivalent_stress(sigma_a, sigma_m, S_UT)
-    
+
     # Encapsulation: Constants are calculated locally
     # ES: Encapsulamiento: Las constantes se calculan localmente
     a, b = basquin_constants(S_UT, S_E, F_FRACTION)
-    
+
     return fatigue_life(sigma_rev, S_E, a, b)
 
 
@@ -121,14 +121,14 @@ def miner_damage(spectrum, span, outer_diameter, wall_thickness):
     total_damage = 0.0
     for force_max_kn, cycles in spectrum:
         life = life_for_force(force_max_kn, span, outer_diameter, wall_thickness)
-        
+
         # Intentional early exit: static yield breaks the structure completely
         # ES: Salida temprana intencional: la fluencia estática rompe la estructura por completo
         if life == 0.0:
             return math.inf
-            
+
         total_damage += cycles / life
-        
+
     return total_damage
 
 
@@ -139,13 +139,31 @@ def blocks_until_failure(force_max_kn, block_cycles, span, outer_diameter, wall_
     Devuelve un int, o un float (math.inf) si la carga está bajo el límite de fatiga.
     """
     life = life_for_force(force_max_kn, span, outer_diameter, wall_thickness)
-    
+
     if life == 0.0:
         return 0
     if life == math.inf:
         return math.inf
-        
+
     return math.ceil(life / block_cycles) - 1
+
+
+def goodman_safety_factor(sigma_a, sigma_m, s_e, s_ut):
+    """Return the Goodman fatigue safety factor.
+    Returns math.inf if alternating stress is zero and mean stress is compressive or zero.
+    ES: Devuelve el factor de seguridad a fatiga de Goodman.
+    Devuelve math.inf si el esfuerzo alternante es cero y el esfuerzo medio es de compresión o cero.
+    """
+    if sigma_m <= 0.0:
+        # Goodman does not credit compressive benefit; evaluate only against S_e
+        # ES: Goodman no acredita beneficio por compresión; evaluamos solo contra S_e
+        if sigma_a == 0.0:
+            return math.inf
+        return s_e / sigma_a
+
+    # Normal case: tensile mean stress
+    # ES: Caso normal: esfuerzo medio a tracción
+    return 1.0 / ((sigma_a / s_e) + (sigma_m / s_ut))
 
 
 if __name__ == "__main__":
@@ -174,4 +192,23 @@ if __name__ == "__main__":
     # ES: --- Prueba: bloques hasta la falla ---
     blocks_35kn = blocks_until_failure(35, 20000, 1200, 114.3, 6.35)
     print(f"Blocks until failure (35 kN, 20k cycles/block): {blocks_35kn}")
-    
+
+    # --- Test: Goodman safety factor at the nominal 25 kN load ---
+    # ES: --- Prueba: factor de seguridad de Goodman a la carga nominal de 25 kN ---
+    sigma_max_25 = bending_stress(25, 1200, 114.3, 6.35)
+    sigma_min_25 = bending_stress(2.5, 1200, 114.3, 6.35)
+    sigma_a_25 = alternating_stress(sigma_max_25, sigma_min_25) * K_F
+    sigma_m_25 = mean_stress(sigma_max_25, sigma_min_25) * K_F
+    sf_bench = goodman_safety_factor(sigma_a_25, sigma_m_25, S_E, S_UT)
+    print(f"Safety factor (25 kN): {sf_bench:.3f}")
+
+    # --- Test: reference case, safety factor above 1 ---
+    # ES:  --- Prueba: Caso de referencia, factor de seguridad superior a 1 ---
+    sf_example = goodman_safety_factor(40.0, 120.0, 100.0, 400.0)
+    print(f"Safety factor (Example): {sf_example:.3f}")
+
+    # --- Test: Pure static tensile load ---
+    # ES:  --- Prueba: Carga de tracción puramente estática ---
+    sf_static = goodman_safety_factor(0.0, 380.0, 94.75, 400.0)
+    print(f"Safety factor (Static 380 MPa): {sf_static:.3f}")
+
