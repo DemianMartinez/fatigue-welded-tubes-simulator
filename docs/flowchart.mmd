@@ -1,0 +1,18 @@
+flowchart TD
+    A["Entrada: Fmax, Fmin, L, Do, t"] --> B["Calcular I, σmax y σmin (ec. 1 y 2)"]
+    B --> C["Calcular σa y σm (ec. 3 y 4)"]
+    C --> D["Aplicar Kf a σa y σm (ec. 5)"]
+
+    D --> E{"¿σmax ≥ Sy?"}
+    E -- "Sí" ---> F["Falla estática. Fin."]
+    E -- "No" ---> G["Goodman: calcular σrev (ec. 6)"]
+
+    G --> H{"¿σrev ≤ Se?"}
+    H -- "Sí" ---> I["Vida infinita. Fin."]
+    H -- "No" ---> J["Basquin: calcular N (ec. 7)"]
+
+    J --> K["Miner: D = Σ(ni/Ni) (ec. 8)"]
+
+    K --> L{"¿D ≥ 1?"}
+    L -- "Sí" ---> M["Falla por fatiga acumulada"]
+    L -- "No" ---> N["Operación segura"]
